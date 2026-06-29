@@ -151,6 +151,32 @@ Each layer has one responsibility. Swapping a layer (e.g. Flagger for Argo Rollo
 
 ---
 
+## Key CRDs by Layer
+
+### Argo CD — GitOps Sync (`argoproj.io/v1alpha1`)
+
+| CRD | Scope | Role in this demo |
+|-----|-------|-------------------|
+| `AppProject` | Namespace | Defines source repos, destination clusters/namespaces, and RBAC boundaries for the `demo-app` project |
+| `ApplicationSet` | Namespace | Single template that generates one `Application` per `environments/{env}/{cluster}` directory |
+| `Application` | Namespace | One per environment (`rollouts-dev-cluster-default`, `rollouts-staging-cluster-us-east`, `rollouts-prod-cluster-us-west`). Reconciles Git → cluster continuously |
+
+### Argo Rollouts — Progressive Delivery (`argoproj.io/v1alpha1`)
+
+| CRD | Scope | Role in this demo |
+|-----|-------|-------------------|
+| `Rollout` | Namespace | Replaces `Deployment`. Owns the pod template and declares the delivery strategy (`instant` / `blueGreen` / `canary`). One per app namespace |
+| `ClusterAnalysisTemplate` | Cluster | Defines the Prometheus success-rate query used to gate canary progression. Deployed once to `shared/argo/analysis-templates/`, referenced by name from every namespace |
+| `AnalysisRun` | Namespace | Created automatically by the Rollout controller when the canary starts. Executes the `ClusterAnalysisTemplate` metrics; aborts and reverts on failure |
+
+### Prometheus Operator — Observability (`monitoring.coreos.com/v1`)
+
+| CRD | Scope | Role in this demo |
+|-----|-------|-------------------|
+| `ServiceMonitor` | Namespace | Tells Prometheus which pods to scrape. Deployed per app namespace via the Helm chart (`metrics.enabled: true`). Required for `AnalysisRun` queries to have data |
+
+---
+
 ## Helm + Kustomize Layering
 
 Each environment's `kustomization.yaml` stacks two value files on top of the base Helm chart:
