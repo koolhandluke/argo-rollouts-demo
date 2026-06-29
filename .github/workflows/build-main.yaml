@@ -1,0 +1,71 @@
+name: Build and Push (main)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'go-app/**'
+
+permissions:
+  id-token: write   # OIDC for ECR auth
+  contents: write   # push image.tag commit back to main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run tests
+        working-directory: go-app
+        run: go test ./...
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        id: build
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: demo-app
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          docker build -t "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}" go-app/
+          docker push "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Update dev image.tag in gitops manifests
+        env:
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+        run: |
+          VALUES_FILE="gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml"
+          # Update image.tag using sed; value is on its own line under the image: key
+          sed -i "s|^  tag:.*|  tag: \"${IMAGE_TAG}\"|" "${VALUES_FILE}"
+
+      - name: Commit and push image.tag update
+        env:
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore(ci): promote demo-app to dev [${IMAGE_TAG}]"
+          git push origin main
