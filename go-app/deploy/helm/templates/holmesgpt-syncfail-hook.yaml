@@ -1,0 +1,91 @@
+{{- if .Values.holmesgpt.enabled }}
+---
+# ServiceAccount for the SyncFail hook Job to create HealthCheck CRs.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "demo-app.fullname" . }}-holmesgpt-hook
+  labels:
+    {{- include "demo-app.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "demo-app.fullname" . }}-holmesgpt-hook
+  labels:
+    {{- include "demo-app.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+rules:
+  - apiGroups: [holmesgpt.dev]
+    resources: [healthchecks]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "demo-app.fullname" . }}-holmesgpt-hook
+  labels:
+    {{- include "demo-app.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "demo-app.fullname" . }}-holmesgpt-hook
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "demo-app.fullname" . }}-holmesgpt-hook
+    namespace: {{ .Release.Namespace }}
+---
+# Job that fires on ArgoCD sync failure and creates a HealthCheck CR.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "demo-app.fullname" . }}-holmesgpt-syncfail
+  labels:
+    {{- include "demo-app.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: SyncFail
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      serviceAccountName: {{ include "demo-app.fullname" . }}-holmesgpt-hook
+      restartPolicy: Never
+      containers:
+        - name: create-healthcheck
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl apply -f - <<EOF
+              apiVersion: holmesgpt.dev/v1alpha1
+              kind: HealthCheck
+              metadata:
+                name: {{ include "demo-app.fullname" . }}-syncfail-{{ .Values.image.tag | replace "." "-" | replace "+" "-" | trunc 30 }}
+                namespace: {{ .Release.Namespace }}
+                labels:
+                  failure-type: argocd-sync-fail
+              spec:
+                model: {{ .Values.holmesgpt.model }}
+                timeout: {{ .Values.holmesgpt.timeout }}
+                mode: alert
+                query: >
+                  ArgoCD sync failed for {{ include "demo-app.fullname" . }} (image tag {{ .Values.image.tag }})
+                  in namespace {{ .Release.Namespace }}.
+                  Investigate why the deployment failed. Check pod status, events, recent logs,
+                  and any resource errors. Explain the root cause and suggest a fix.
+                destinations:
+                  - type: slack
+                    config:
+                      channel: {{ .Values.holmesgpt.slackChannel | quote }}
+              EOF
+{{- end }}

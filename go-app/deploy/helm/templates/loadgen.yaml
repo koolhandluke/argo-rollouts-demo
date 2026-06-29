@@ -1,0 +1,28 @@
+{{- if .Values.loadgen.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "demo-app.fullname" . }}-loadgen
+  labels:
+    {{- include "demo-app.labels" . | nindent 4 }}
+spec:
+  schedule: "* * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: curl
+            image: curlimages/curl:8.7.1
+            command:
+            - /bin/sh
+            - -c
+            - |
+              for i in $(seq 1 60); do
+                curl -s -o /dev/null http://{{ include "demo-app.fullname" . }}-stable:{{ .Values.service.port }}/
+                sleep 1
+              done
+          restartPolicy: OnFailure
+{{- end }}

@@ -1,0 +1,28 @@
+image:
+  repository: ""        # required — set per environment
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecrets: []       # e.g. [{name: ecr-pull-secret}]
+
+rollout:
+  strategy: instant     # instant | blueGreen | canary
+
+replicaCount: 2
+
+service:
+  port: 8080
+
+metrics:
+  enabled: true         # deploys ServiceMonitor for kube-prometheus-stack
+
+prometheus:
+  address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+
+loadgen:
+  enabled: false        # deploys a CronJob that sends traffic every minute
+
+holmesgpt:
+  enabled: false        # create a HealthCheck CR on every deploy to analyse rollout health
+  model: claude-sonnet  # must match a key in the HolmesGPT modelList
+  slackChannel: "#deploy-alerts"
+  timeout: 120
