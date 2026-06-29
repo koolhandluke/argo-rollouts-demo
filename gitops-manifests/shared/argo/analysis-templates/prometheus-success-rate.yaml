@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: prometheus-success-rate
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: success-rate
+      interval: 30s
+      count: 3
+      failureLimit: 1
+      successCondition: result[0] >= 0.95
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+          query: |
+            sum(rate(http_requests_total{status="2xx"}[2m]))
+            /
+            sum(rate(http_requests_total{}[2m]))
