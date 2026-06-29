@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'go-app/**'
+  workflow_dispatch:
 
 permissions:
   id-token: write   # OIDC for ECR auth
@@ -45,11 +46,17 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: demo-app
         run: |
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          IMAGE_TAG="sha-${SHORT_SHA}"
-          docker build -t "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}" go-app/
-          docker push "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            IMAGE_TAG="manual-$(date -u '+%Y%m%d-%H%M%S')"
+          else
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            IMAGE_TAG="sha-${SHORT_SHA}"
+          fi
+          IMAGE_NAME="${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+          docker build -t "${IMAGE_NAME}" go-app/
+          docker push "${IMAGE_NAME}"
           echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Update dev image.tag in gitops manifests
         env:
@@ -69,3 +76,17 @@ jobs:
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "chore(ci): promote demo-app to dev [${IMAGE_TAG}]"
           git push origin main
+
+      - name: Write job summary
+        env:
+          IMAGE_NAME: ${{ steps.build.outputs.image_name }}
+          IMAGE_TAG: ${{ steps.build.outputs.image_tag }}
+        run: |
+          echo "## Image published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Tag** | \`${IMAGE_TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Full image** | \`${IMAGE_NAME}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Trigger** | \`${{ github.event_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Commit** | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
