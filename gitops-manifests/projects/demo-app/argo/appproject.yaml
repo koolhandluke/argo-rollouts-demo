@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: rollouts-demo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Argo Rollouts demo project — manual promotion
+  sourceRepos:
+    - https://github.com/your-org/argo-rollouts-demo.git
+    - oci://819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app-chart
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: rollouts-dev
+    - server: https://kubernetes.default.svc
+      namespace: rollouts-staging
+    - server: https://kubernetes.default.svc
+      namespace: rollouts-prod
+  clusterResourceWhitelist:
+    - group: argoproj.io
+      kind: ClusterAnalysisTemplate
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

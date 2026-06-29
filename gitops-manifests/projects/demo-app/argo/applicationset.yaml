@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: rollouts-demo
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/your-org/argo-rollouts-demo.git
+        revision: HEAD
+        directories:
+          - path: gitops-manifests/projects/demo-app/environments/*/*
+  template:
+    metadata:
+      # path[4]=env, path[5]=cluster → rollouts-staging-cluster-us-east
+      name: 'rollouts-{{path[4]}}-{{path[5]}}'
+    spec:
+      project: rollouts-demo
+      source:
+        repoURL: https://github.com/your-org/argo-rollouts-demo.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'rollouts-{{path[4]}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
