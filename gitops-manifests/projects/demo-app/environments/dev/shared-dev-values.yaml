@@ -3,8 +3,6 @@
 image:
   repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
   tag: "sha-868cf2e"
-  pullSecrets:
-    - name: ecr-pull-secret
 
 rollout:
   strategy: instant
