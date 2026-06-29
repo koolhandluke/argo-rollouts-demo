@@ -6,7 +6,7 @@ metadata:
 spec:
   generators:
     - git:
-        repoURL: https://github.com/your-org/argo-rollouts-demo.git
+        repoURL: https://github.com/koolhandluke/argo-rollouts-demo.git
         revision: HEAD
         directories:
           - path: gitops-manifests/projects/demo-app/environments/*/*
@@ -17,7 +17,7 @@ spec:
     spec:
       project: rollouts-demo
       source:
-        repoURL: https://github.com/your-org/argo-rollouts-demo.git
+        repoURL: https://github.com/koolhandluke/argo-rollouts-demo.git
         targetRevision: HEAD
         path: '{{path}}'
       destination:
