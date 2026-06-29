@@ -9,7 +9,7 @@ resources:
 helmCharts:
   - name: demo-app
     repo: oci://819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app-chart
-    version: "0.0.0"   # update to semver on promotion
+    version: "0.1.0"
     releaseName: demo-app
     valuesFile: ../shared-staging-values.yaml
     additionalValuesFiles:

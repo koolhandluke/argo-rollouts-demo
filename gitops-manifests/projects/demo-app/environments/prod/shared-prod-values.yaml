@@ -2,7 +2,7 @@
 # Manually updated (rollouts-demo) on promotion from staging.
 image:
   repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: "0.0.0"   # update to semver on promotion
+  tag: "v0.1.0"
   pullSecrets:
     - name: ecr-pull-secret
 
