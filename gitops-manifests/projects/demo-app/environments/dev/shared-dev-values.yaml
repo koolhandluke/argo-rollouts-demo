@@ -2,7 +2,7 @@
 # CI writes image.tag here on every push to main.
 image:
   repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: sha-fe8bcb4   # replaced by CI on every push to main
+  tag: "sha-ec01d34"
   pullSecrets:
     - name: ecr-pull-secret
 
