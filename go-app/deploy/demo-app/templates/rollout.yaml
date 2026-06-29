@@ -75,6 +75,7 @@ spec:
       analysis:
         templates:
           - templateName: prometheus-success-rate
+            clusterScope: true
         startingStep: 1
         args:
           - name: service-name
