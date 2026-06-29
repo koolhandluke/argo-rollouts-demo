@@ -4,7 +4,52 @@
 
 ---
 
+## Cluster Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          AWS EKS Cluster (single)                            │
+│                                                                              │
+│  ┌─────────────────────── Control Plane ──────────────────────────────────┐  │
+│  │                                                                         │  │
+│  │  ┌───────────────┐  ┌──────────────────┐  ┌──────────────────────┐    │  │
+│  │  │    argocd     │  │  argo-rollouts   │  │      monitoring      │    │  │
+│  │  │               │  │                  │  │                      │    │  │
+│  │  │ API Server    │  │ Rollout          │  │ Prometheus           │    │  │
+│  │  │ App Ctrl      │  │ Controller       │  │ (kube-prometheus-    │    │  │
+│  │  │ Repo Server   │  │ Dashboard        │  │  stack)              │    │  │
+│  │  │ AppSet Ctrl   │  │                  │  │                      │    │  │
+│  │  └───────┬───────┘  └────────┬─────────┘  └──────────┬───────────┘    │  │
+│  └──────────┼──────────────────┼─────────────────────────┼────────────────┘  │
+│             │                  │                         │                   │
+│  ┌──────────┼──────────────────┼─────────────────────────┼────────────────┐  │
+│  │          │   Application Namespaces                   │                │  │
+│  │          ▼                  ▼                         │                │  │
+│  │  ┌──────────────┐  ┌───────────────┐  ┌──────────────────────────┐    │  │
+│  │  │ rollouts-dev │  │rollouts-staging│  │      rollouts-prod       │    │  │
+│  │  │              │  │               │  │                          │    │  │
+│  │  │ Rollout      │  │ Rollout       │  │ Rollout (canary)         │    │  │
+│  │  │ (instant)    │  │ (blueGreen)   │  │ AnalysisRun ◄────────────┼────┘  │
+│  │  │ Service      │  │ Active Svc    │  │ Stable Service           │    │  │
+│  │  │              │  │ Preview Svc   │  │ Canary Service           │    │  │
+│  │  └──────────────┘  └───────────────┘  └──────────────────────────┘    │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────┘
+       ▲  git sync (ApplicationSet)                     ▲  image pull
+       │                                                │
+┌──────┴───────────────────────┐           ┌────────────┴────────────┐
+│  GitHub (gitops-manifests/)  │           │        AWS ECR          │
+│                              │           │  demo-app:sha-<commit>  │
+│  CI auto-commits image.tag   │           │  demo-app:<semver>      │
+│  to shared-dev-values.yaml   │           └─────────────────────────┘
+└──────────────────────────────┘
+```
+
+---
+
 ## Delivery Flow
+
+**Dev** (automatic — every push to `main`):
 
 ```
 Push to go-app/ on main
@@ -14,7 +59,7 @@ Push to go-app/ on main
   → Argo Rollouts executes instant strategy (100% immediately)
 ```
 
-For staging and prod (manual promotion):
+**Staging and prod** (manual promotion):
 
 ```
 Edit shared-{env}-values.yaml (image.tag: <semver>)
@@ -31,7 +76,7 @@ Edit shared-{env}-values.yaml (image.tag: <semver>)
 argo-rollouts-demo/
 ├── go-app/
 │   ├── cmd/server/                   # Go HTTP server
-│   ├── deploy/demo-app/                  # Base Helm chart — no env-specific values
+│   ├── deploy/demo-app/              # Base Helm chart — no env-specific values
 │   └── Dockerfile
 ├── gitops-manifests/
 │   ├── projects/demo-app/
@@ -102,6 +147,8 @@ argo-rollouts-demo/
 └─────────────────────────────────────────────────────────────┘
 ```
 
+Each layer has one responsibility. Swapping a layer (e.g. Flagger for Argo Rollouts, or a different registry) only affects that layer.
+
 ---
 
 ## Helm + Kustomize Layering
@@ -109,18 +156,49 @@ argo-rollouts-demo/
 Each environment's `kustomization.yaml` stacks two value files on top of the base Helm chart:
 
 ```
-go-app/deploy/demo-app/values.yaml          ← safe defaults (never edited)
+go-app/deploy/demo-app/values.yaml      ← safe defaults (never edited)
   + shared-{env}-values.yaml            ← image.tag, strategy, replicas, loadgen
   + values-override.yaml                ← static cluster config (region, host, etc.)
 ```
 
 The base chart has no environment-specific values. All environment behavior is injected by the overlay.
 
+**Dev** (references local chart via `helmGlobals.chartHome`):
+
+```yaml
+# environments/dev/cluster-default/kustomization.yaml
+helmGlobals:
+  chartHome: ../../../../../../go-app/deploy
+
+helmCharts:
+  - name: demo-app
+    releaseName: demo-app
+    valuesFile: ../shared-dev-values.yaml
+    additionalValuesFiles:
+      - ./values-override.yaml
+```
+
+**Prod** (references versioned OCI chart from ECR — updated on each release):
+
+```yaml
+# environments/prod/cluster-us-west/kustomization.yaml
+helmCharts:
+  - name: demo-app
+    repo: oci://819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app-chart
+    version: "0.0.0"   # update to semver on promotion
+    releaseName: demo-app
+    valuesFile: ../shared-prod-values.yaml
+    additionalValuesFiles:
+      - ./values-override.yaml
+```
+
+Dev pulls from the local chart on disk (fast iteration, no chart publish required). Staging and prod pull a published OCI chart from ECR — the chart version is pinned and updated explicitly on promotion, giving an independent artifact trail.
+
 ---
 
 ## Per-Stage Rollout Strategies
 
-The `rollout.strategy` key in `shared-{env}-values.yaml` controls which branch of the Rollout template runs:
+The `rollout.strategy` key in `shared-{env}-values.yaml` controls which branch of the Rollout template renders:
 
 | Env | Strategy | Steps | Replicas |
 |-----|----------|-------|----------|
@@ -128,23 +206,146 @@ The `rollout.strategy` key in `shared-{env}-values.yaml` controls which branch o
 | staging | `blueGreen` | Preview pod starts; `autoPromotionEnabled: false` | 2 |
 | prod | `canary` | `20% → pause {} → 50% → pause {} → 100%` | 3 |
 
-Prod canary uses replica-weighted traffic splitting — no Istio or Gateway API required for the POC.
+The three strategies share one Rollout template in the Helm chart:
 
-The `ClusterAnalysisTemplate` (`prometheus-success-rate`) runs in parallel with the canary starting at step 1. It queries Prometheus every 30s for 3 measurements. If the HTTP success rate drops below 95%, Argo Rollouts aborts automatically and reverts to stable.
+```yaml
+# go-app/deploy/demo-app/templates/rollout.yaml (strategy section)
+
+{{- if eq .Values.rollout.strategy "instant" }}
+strategy:
+  canary:
+    steps:
+      - setWeight: 100
+
+{{- else if eq .Values.rollout.strategy "blueGreen" }}
+strategy:
+  blueGreen:
+    activeService: demo-app-stable
+    previewService: demo-app-canary
+    autoPromotionEnabled: false
+
+{{- else if eq .Values.rollout.strategy "canary" }}
+strategy:
+  canary:
+    stableService: demo-app-stable
+    canaryService: demo-app-canary
+    # trafficRouting omitted — Rollouts uses replica-weighted traffic
+    # approximation (basic K8s Services). No service mesh required for the demo.
+    steps:
+      - setWeight: 20
+      - pause: {}
+      - setWeight: 50
+      - pause: {}
+      - setWeight: 100
+    analysis:
+      templates:
+        - templateName: prometheus-success-rate
+      startingStep: 1
+      args:
+        - name: service-name
+          value: demo-app-canary
+{{- end }}
+```
+
+The prod canary pauses indefinitely at 20% and 50% (no `duration`), requiring a manual `kubectl argo rollouts promote` to advance — or an abort if the AnalysisRun fails.
+
+### ClusterAnalysisTemplate
+
+Deployed once per cluster to `shared/argo/analysis-templates/`. Referenced by name from every namespace — no per-environment duplication.
+
+```yaml
+# gitops-manifests/shared/argo/analysis-templates/prometheus-success-rate.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: prometheus-success-rate
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: success-rate
+      interval: 30s
+      count: 3
+      failureLimit: 1
+      successCondition: result[0] >= 0.95
+      provider:
+        prometheus:
+          address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+          query: |
+            sum(rate(http_requests_total{status="2xx"}[2m]))
+            /
+            sum(rate(http_requests_total{}[2m]))
+```
+
+The AnalysisRun runs in parallel with the canary starting at step 1 (20% weight). It queries Prometheus every 30s for 3 measurements. If HTTP success rate drops below 95%, Argo Rollouts aborts and reverts to stable automatically. `loadgen.enabled: true` in `shared-prod-values.yaml` ensures traffic exists during the analysis window.
 
 ---
 
-## Key Design Decisions
+## Design Considerations
 
-**Single Helm chart, no duplication.** Strategy is a values key. The same chart produces the correct behavior for all three environments.
+### Single Cluster, Namespace Isolation
 
-**`shared-{env}-values.yaml` is the promotion record.** The only field that changes on promotion is `image.tag`. This is the single source of truth for what is deployed to each environment.
+The demo uses a single EKS cluster with namespace-per-environment:
 
-**CI writes to dev only.** SHA-tagged images auto-promote to dev. Staging and prod require a deliberate human edit. This enforces a promotion gate at every environment boundary without needing Kargo.
+- **Simpler to operate** — one kubeconfig, one set of controllers, one Argo CD instance
+- **Sufficient to prove the model** — progressive delivery, analysis, and multi-environment promotion work identically in multi-cluster
+- **Easy to extend** — Argo CD supports multiple destination servers natively; only `destination.server` in the ApplicationSet changes when adding clusters
 
-**`ClusterAnalysisTemplate` (not namespace-scoped).** Deployed once per cluster via `shared/argo/analysis-templates/`. All environment namespaces reference it by name — no duplication across dev/staging/prod.
+**Production consideration:** Real workloads typically use separate clusters for prod (blast radius isolation, independent scaling, compliance boundaries). The delivery model here does not change — namespace references become cluster references.
 
-**ECR pull secret via placeholder.** `gitops-manifests/clusters/{env}/{cluster}/ecr-pull-secret.yaml` are placeholders. IRSA (IAM Roles for Service Accounts) is the production solution — no secret rotation, automatic token refresh.
+### Git as Single Source of Truth
+
+Every environment change is a Git commit:
+
+- CI writes `image.tag` to `shared-dev-values.yaml` on every push to `main`
+- Staging and prod promotions are a human edit to `shared-{env}-values.yaml` + a push
+- Argo CD reconciles continuously — no out-of-band `kubectl apply`
+
+Full audit trail, easy rollback (`git revert`), reproducibility. If the cluster is destroyed, `git + argocd sync` rebuilds every environment.
+
+### Separation of Concerns
+
+| Concern | Owner |
+|---------|-------|
+| What runs where | Argo CD — ApplicationSet generates Applications from Git |
+| How it rolls out | Argo Rollouts — Rollout CRD executes the strategy |
+| Whether it's healthy | Prometheus + AnalysisRun — metrics gate progression |
+| When to advance | Human — `kubectl argo rollouts promote` at each pause step |
+
+No component does two jobs. Each can be upgraded or replaced independently.
+
+### Per-Stage Strategy via Values
+
+Using a single Helm chart with `rollout.strategy` as a values key:
+
+- Dev gets **instant rollout** — fast feedback, no ceremony
+- Staging gets **blue-green** — validates the full release against a live preview before switching traffic
+- Prod gets **canary with analysis** — gradual replica shift with automatic abort on metric degradation
+
+Same chart, same templates, different behavior per environment. No chart duplication, no forking.
+
+### Credential Scope
+
+| Secret | Namespace | Purpose |
+|--------|-----------|---------|
+| ECR pull secret | `rollouts-dev`, `rollouts-staging`, `rollouts-prod` | Pull application image |
+| Git credentials | `argocd` | Read gitops repo |
+
+ECR access via IRSA (IAM Roles for Service Accounts) on the node role or a dedicated service account — no static credentials, no rotation burden, automatic token refresh.
+
+---
+
+## Tradeoffs
+
+| Decision | Upside | Downside | Mitigation |
+|----------|--------|----------|------------|
+| **Rollout CRD replaces Deployment** | Enables canary/blue-green natively; explicit strategy control per env | Apps must use Rollout instead of Deployment; migration cost for existing workloads | Rollout is a superset of Deployment — drop-in replacement with identical pod spec |
+| **Replica-weighted canary (no service mesh)** | No Istio/Gateway API dependency; simpler setup for a demo | Traffic split is approximate — actual split depends on replica counts, not request weights | Sufficient for the demo; add `trafficRouting.plugins.gatewayAPI` to the Rollout for request-level precision |
+| **Single Helm chart, strategy as a values key** | No chart duplication; per-stage behavior is a one-line diff | Helm complexity grows if strategies diverge significantly | Keep strategy branches thin — strategy-specific services and analysis live in the chart, not in overlays |
+| **Manual promotion for staging/prod** | Enforces a human gate at every environment boundary without a promotion orchestrator | Requires a deliberate edit + push; no approval audit trail in the tool itself | Git commit history is the audit trail; add PR-based promotion for a formal review step |
+| **`shared-{env}-values.yaml` as the promotion record** | Single file to edit, clear diff on every promotion | All environment config in one file — mixing promotion-time and static config | `values-override.yaml` holds static cluster config; `shared-{env}-values.yaml` holds only what changes on promotion |
+| **Single cluster for the demo** | Simple to operate; one kubeconfig | No blast-radius isolation between environments | Namespace-level RBAC; the architecture supports multi-cluster without changing the delivery model |
+| **Prometheus for analysis** | Already needed for observability; no extra infra | Requires the app to expose HTTP metrics; NaN results if no traffic during analysis window | App exposes `/metrics`; `loadgen.enabled: true` in prod ensures traffic during analysis windows |
 
 ---
 
