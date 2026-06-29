@@ -3,9 +3,6 @@ kind: Kustomization
 
 namespace: rollouts-prod
 
-resources:
-  - ../../../../../shared/argo/analysis-templates/prometheus-success-rate.yaml
-
 helmGlobals:
   chartHome: ../../../../../../go-app/deploy
 
