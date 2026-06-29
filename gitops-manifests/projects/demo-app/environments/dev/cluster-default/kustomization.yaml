@@ -3,10 +3,6 @@ kind: Kustomization
 
 namespace: rollouts-dev   # Kustomize injects this into every rendered resource
 
-resources:
-  # 5 levels up → gitops-manifests/, then shared/argo/analysis-templates/
-  - ../../../../../shared/argo/analysis-templates/prometheus-success-rate.yaml
-
 helmGlobals:
   chartHome: ../../../../../../go-app/deploy
 
