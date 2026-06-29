@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>argo-rollouts-demo — Quick Access</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      padding: 2rem;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #f0f6fc;
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #8b949e;
+      margin-bottom: 2rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-argocd   { background: #1f6feb; color: #fff; }
+    .badge-rollouts { background: #8957e5; color: #fff; }
+    .badge-prom     { background: #b45309; color: #fff; }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #f0f6fc;
+    }
+
+    .url-link {
+      display: inline-block;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #58a6ff;
+      text-decoration: none;
+      margin-bottom: 0.75rem;
+    }
+
+    .url-link:hover { text-decoration: underline; }
+
+    .creds {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .creds-row {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.82rem;
+      line-height: 1.7;
+    }
+
+    .creds-label {
+      color: #8b949e;
+      width: 70px;
+      flex-shrink: 0;
+    }
+
+    .creds-value {
+      color: #e6edf3;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    .cmd-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #8b949e;
+      margin-bottom: 0.3rem;
+    }
+
+    .cmd {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.78rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      color: #a5d6ff;
+      white-space: pre-wrap;
+      word-break: break-all;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .cmd:hover { border-color: #58a6ff; }
+
+    .note {
+      font-size: 0.78rem;
+      color: #8b949e;
+      margin-top: 0.6rem;
+      line-height: 1.5;
+    }
+
+    .note code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      background: #0d1117;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #a5d6ff;
+    }
+
+    .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b949e;
+      margin: 2rem 0 0.75rem;
+      border-bottom: 1px solid #21262d;
+      padding-bottom: 0.4rem;
+    }
+
+    .no-creds {
+      font-size: 0.8rem;
+      color: #8b949e;
+      font-style: italic;
+      margin-bottom: 0.75rem;
+    }
+
+    .quickstart {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .qs-label {
+      font-size: 0.8rem;
+      color: #8b949e;
+      white-space: nowrap;
+    }
+
+    .qs-cmd {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.85rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      color: #a5d6ff;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      white-space: nowrap;
+    }
+
+    .qs-cmd:hover { border-color: #58a6ff; }
+
+    .qs-btn {
+      background: none;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 0.45rem 1rem;
+      font-size: 0.82rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+
+    .qs-btn-start {
+      color: #3fb950;
+      border-color: #3fb950;
+    }
+
+    .qs-btn-start:hover { background: rgba(63, 185, 80, 0.1); }
+
+    .qs-btn-stop {
+      color: #f85149;
+      border-color: #f85149;
+    }
+
+    .qs-btn-stop:hover { background: rgba(248, 81, 73, 0.1); }
+
+    .qs-btn-status {
+      color: #8b949e;
+      border-color: #30363d;
+    }
+
+    .qs-btn-status:hover { background: rgba(139, 148, 158, 0.1); }
+  </style>
+</head>
+<body>
+
+  <h1>argo-rollouts-demo — Quick Access</h1>
+  <p class="subtitle">Click any command to copy it. Buttons below start/stop all port-forwards at once.</p>
+
+  <div class="quickstart">
+    <span class="qs-label">Port-forwards</span>
+    <div class="qs-cmd" onclick="copy(this)" title="Click to copy">/Users/kostasmorfis/git/argo/docs/pf.sh start</div>
+    <button class="qs-btn qs-btn-start" onclick="copyText('/Users/kostasmorfis/git/argo/docs/pf.sh start')">Copy Start</button>
+    <button class="qs-btn qs-btn-stop"  onclick="copyText('/Users/kostasmorfis/git/argo/docs/pf.sh stop')">Copy Stop</button>
+    <button class="qs-btn qs-btn-status" onclick="copyText('/Users/kostasmorfis/git/argo/docs/pf.sh status')">Copy Status</button>
+  </div>
+
+  <p class="section-title">Core UIs</p>
+  <div class="grid">
+
+    <!-- Argo CD -->
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-argocd">Argo CD</span>
+        <span class="card-title">GitOps UI</span>
+      </div>
+      <a class="url-link" href="https://localhost:8080" target="_blank">https://localhost:8080</a>
+      <div class="creds">
+        <div class="creds-row">
+          <span class="creds-label">Username</span>
+          <span class="creds-value">admin</span>
+        </div>
+        <div class="creds-row">
+          <span class="creds-label">Password</span>
+          <span class="creds-value">run command below ↓</span>
+        </div>
+      </div>
+      <div class="cmd-label">Port-forward</div>
+      <div class="cmd" onclick="copy(this)">kubectl port-forward svc/argocd-server -n argocd 8080:443</div>
+      <div class="cmd-label" style="margin-top:0.6rem">Get password</div>
+      <div class="cmd" onclick="copy(this)">kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d</div>
+    </div>
+
+    <!-- Argo Rollouts -->
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-rollouts">Rollouts</span>
+        <span class="card-title">Rollouts Dashboard</span>
+      </div>
+      <a class="url-link" href="http://localhost:3100/rollouts" target="_blank">http://localhost:3100/rollouts</a>
+      <p class="no-creds">No login required</p>
+      <div class="cmd-label">Port-forward</div>
+      <div class="cmd" onclick="copy(this)">kubectl port-forward svc/argo-rollouts-dashboard -n argo-rollouts 3100:3100</div>
+      <p class="note">Or use: <code>kubectl argo rollouts dashboard</code></p>
+    </div>
+
+    <!-- Prometheus -->
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-prom">Prometheus</span>
+        <span class="card-title">Metrics (canary analysis)</span>
+      </div>
+      <a class="url-link" href="http://localhost:9090" target="_blank">http://localhost:9090</a>
+      <p class="no-creds">No login required</p>
+      <div class="cmd-label">Port-forward</div>
+      <div class="cmd" onclick="copy(this)">kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090</div>
+      <p class="note">Canary analysis query: <code>sum(rate(http_requests_total{status="2xx"}[2m])) / sum(rate(http_requests_total{}[2m]))</code></p>
+    </div>
+
+  </div>
+
+  <p class="section-title">Namespaces at a Glance</p>
+  <div class="grid">
+    <div class="card">
+      <div class="cmd-label">All rollout statuses</div>
+      <div class="cmd" onclick="copy(this)">kubectl get rollouts -A</div>
+      <div class="cmd-label" style="margin-top:0.6rem">All Argo CD apps (this demo)</div>
+      <div class="cmd" onclick="copy(this)">kubectl get applications -n argocd | grep rollouts</div>
+      <div class="cmd-label" style="margin-top:0.6rem">All pods (non-running)</div>
+      <div class="cmd" onclick="copy(this)">kubectl get pods -A | grep -v Running | grep -v Completed</div>
+    </div>
+    <div class="card">
+      <div class="cmd-label">rollouts-prod — watch canary</div>
+      <div class="cmd" onclick="copy(this)">kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-prod --watch</div>
+      <div class="cmd-label" style="margin-top:0.6rem">rollouts-prod — watch analysis</div>
+      <div class="cmd" onclick="copy(this)">kubectl get analysisruns -n rollouts-prod -w</div>
+      <div class="cmd-label" style="margin-top:0.6rem">rollouts-staging — watch bluegreen</div>
+      <div class="cmd" onclick="copy(this)">kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-staging --watch</div>
+    </div>
+    <div class="card">
+      <div class="cmd-label">Image running in each env</div>
+      <div class="cmd" onclick="copy(this)">for ns in rollouts-dev rollouts-staging rollouts-prod; do echo "$ns: $(kubectl get pods -n $ns -o jsonpath='{.items[0].spec.containers[0].image}' 2>/dev/null)"; done</div>
+    </div>
+  </div>
+
+  <script>
+    function copy(el) {
+      navigator.clipboard.writeText(el.innerText).then(() => {
+        const orig = el.style.borderColor;
+        el.style.borderColor = '#3fb950';
+        setTimeout(() => { el.style.borderColor = orig; }, 800);
+      });
+    }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(() => {
+        const bar = document.querySelector('.quickstart');
+        const orig = bar.style.borderColor;
+        bar.style.borderColor = '#3fb950';
+        setTimeout(() => { bar.style.borderColor = orig; }, 600);
+      });
+    }
+  </script>
+
+</body>
+</html>

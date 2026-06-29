@@ -34,3 +34,11 @@ helm template demo-app go-app/deploy/helm \
 | dev | rollouts-dev |
 | staging | rollouts-staging |
 | prod | rollouts-prod |
+
+## Docs
+
+| File | Purpose |
+|------|---------|
+| `docs/01-architecture.md` | Repo structure, delivery flow, design decisions |
+| `docs/02-tutorial.md` | Operational how-to: trigger, watch, promote, abort |
+| `docs/argo-links.html` | Quick-access UI links and copy-paste kubectl commands |
