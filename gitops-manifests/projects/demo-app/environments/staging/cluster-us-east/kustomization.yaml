@@ -6,10 +6,11 @@ namespace: rollouts-staging
 resources:
   - ../../../../../shared/argo/analysis-templates/prometheus-success-rate.yaml
 
+helmGlobals:
+  chartHome: ../../../../../../go-app/deploy
+
 helmCharts:
   - name: demo-app
-    repo: oci://819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app-chart
-    version: "0.1.0"
     releaseName: demo-app
     valuesFile: ../shared-staging-values.yaml
     additionalValuesFiles:
