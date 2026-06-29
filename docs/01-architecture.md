@@ -31,7 +31,7 @@ Edit shared-{env}-values.yaml (image.tag: <semver>)
 argo-rollouts-demo/
 ├── go-app/
 │   ├── cmd/server/                   # Go HTTP server
-│   ├── deploy/helm/                  # Base Helm chart — no env-specific values
+│   ├── deploy/demo-app/                  # Base Helm chart — no env-specific values
 │   └── Dockerfile
 ├── gitops-manifests/
 │   ├── projects/demo-app/
@@ -109,7 +109,7 @@ argo-rollouts-demo/
 Each environment's `kustomization.yaml` stacks two value files on top of the base Helm chart:
 
 ```
-go-app/deploy/helm/values.yaml          ← safe defaults (never edited)
+go-app/deploy/demo-app/values.yaml          ← safe defaults (never edited)
   + shared-{env}-values.yaml            ← image.tag, strategy, replicas, loadgen
   + values-override.yaml                ← static cluster config (region, host, etc.)
 ```

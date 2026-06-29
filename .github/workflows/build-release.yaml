@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  CHART_PATH: go-app/deploy/helm
+  CHART_PATH: go-app/deploy/demo-app
 
 jobs:
   build:

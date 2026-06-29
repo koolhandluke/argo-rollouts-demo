@@ -9,7 +9,7 @@ CI auto-commits `image.tag` to dev on every push to `main`.
 | Path | Purpose |
 |------|---------|
 | `go-app/cmd/server/` | Go HTTP server entry point |
-| `go-app/deploy/helm/` | Base Helm chart — no env-specific values |
+| `go-app/deploy/demo-app/` | Base Helm chart — no env-specific values |
 | `go-app/Dockerfile` | Two-stage distroless build |
 | `gitops-manifests/projects/demo-app/argo/` | ApplicationSet + AppProject |
 | `gitops-manifests/projects/demo-app/environments/{env}/shared-{env}-values.yaml` | image.tag lives here — the only file edited during promotion |
@@ -22,8 +22,8 @@ CI auto-commits `image.tag` to dev on every push to `main`.
 
 ```bash
 cd go-app && go test ./...
-helm lint go-app/deploy/helm --set image.repository=test --set image.tag=test
-helm template demo-app go-app/deploy/helm \
+helm lint go-app/deploy/demo-app --set image.repository=test --set image.tag=test
+helm template demo-app go-app/deploy/demo-app \
   -f gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml
 ```
 

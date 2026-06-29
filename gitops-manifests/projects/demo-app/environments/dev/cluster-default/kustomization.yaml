@@ -7,11 +7,12 @@ resources:
   # 5 levels up → gitops-manifests/, then shared/argo/analysis-templates/
   - ../../../../../shared/argo/analysis-templates/prometheus-success-rate.yaml
 
+helmGlobals:
+  chartHome: ../../../../../../go-app/deploy
+
 helmCharts:
   - name: demo-app
-    # 6 levels up → repo root, then go-app/deploy/helm
-    path: ../../../../../../go-app/deploy/helm
     releaseName: demo-app
-    valuesFiles:
-      - ../shared-dev-values.yaml      # env-wide: image.tag, strategy, replicas
-      - ./values-override.yaml         # cluster-specific: region, ingress host
+    valuesFile: ../shared-dev-values.yaml      # env-wide: image.tag, strategy, replicas
+    additionalValuesFiles:
+      - ./values-override.yaml                   # cluster-specific: region, ingress host
