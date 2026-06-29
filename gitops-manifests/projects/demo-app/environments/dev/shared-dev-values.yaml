@@ -2,7 +2,7 @@
 # CI writes image.tag here on every push to main.
 image:
   repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: "sha-868cf2e"
+  tag: "sha-d1405f4"
 
 rollout:
   strategy: instant
