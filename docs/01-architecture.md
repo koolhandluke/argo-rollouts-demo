@@ -220,6 +220,8 @@ helmCharts:
 
 Dev pulls from the local chart on disk (fast iteration, no chart publish required). Staging and prod pull a published OCI chart from ECR — the chart version is pinned and updated explicitly on promotion, giving an independent artifact trail.
 
+**Helm naming note:** `releaseName: demo-app` matches `Chart.name: demo-app`. The `_helpers.tpl` `fullname` helper uses a `contains` guard — if the release name already includes the chart name, it returns the release name as-is instead of appending it again. Without this guard the Rollout would be named `demo-app-demo-app`.
+
 ---
 
 ## Per-Stage Rollout Strategies
