@@ -1,0 +1,18 @@
+# gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml
+# CI writes image.tag here on every push to main.
+image:
+  repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
+  tag: sha-fe8bcb4   # replaced by CI on every push to main
+  pullSecrets:
+    - name: ecr-pull-secret
+
+rollout:
+  strategy: instant
+
+replicaCount: 1
+
+metrics:
+  enabled: true
+
+loadgen:
+  enabled: false

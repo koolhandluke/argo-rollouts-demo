@@ -1,0 +1,22 @@
+# gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml
+# Manually updated (rollouts-demo) on promotion from dev.
+image:
+  repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
+  tag: "0.0.0"   # update to semver on promotion
+  pullSecrets:
+    - name: ecr-pull-secret
+
+rollout:
+  strategy: blueGreen
+
+replicaCount: 2
+
+metrics:
+  enabled: true
+
+loadgen:
+  enabled: false
+
+holmesgpt:
+  enabled: true
+  slackChannel: "#deploy-alerts"

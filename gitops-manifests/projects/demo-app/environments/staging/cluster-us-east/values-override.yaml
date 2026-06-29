@@ -1,0 +1,9 @@
+# gitops-manifests/projects/demo-app/environments/staging/cluster-us-east/values-override.yaml
+# Static cluster-specific config. Never edited during promotion.
+replicaCount: 2
+
+ingress:
+  host: demo-app.staging.us-east.example.com
+
+env:
+  AWS_REGION: "us-east-1"

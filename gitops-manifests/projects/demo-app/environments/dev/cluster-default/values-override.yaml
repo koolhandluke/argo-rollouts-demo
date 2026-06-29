@@ -1,0 +1,4 @@
+# gitops-manifests/projects/demo-app/environments/dev/cluster-default/values-override.yaml
+# Static cluster-specific config. Never edited during promotion.
+# image.tag lives in ../shared-dev-values.yaml
+replicaCount: 1

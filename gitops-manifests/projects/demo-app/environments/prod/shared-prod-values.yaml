@@ -1,0 +1,18 @@
+# gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml
+# Manually updated (rollouts-demo) on promotion from staging.
+image:
+  repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
+  tag: "0.0.0"   # update to semver on promotion
+  pullSecrets:
+    - name: ecr-pull-secret
+
+rollout:
+  strategy: canary
+
+replicaCount: 3
+
+metrics:
+  enabled: true
+
+loadgen:
+  enabled: true
