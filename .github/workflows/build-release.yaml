@@ -65,7 +65,7 @@ jobs:
 
       - name: Authenticate Helm to ECR OCI
         run: |
-          echo "${{ steps.login-ecr.outputs.password }}" | helm registry login \
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | helm registry login \
             ${{ steps.login-ecr.outputs.registry }} \
             --username AWS \
             --password-stdin
