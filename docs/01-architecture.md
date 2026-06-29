@@ -62,6 +62,16 @@ argo-rollouts-demo/
 
 ## Namespace Topology
 
+**Control plane:**
+
+| Namespace | Contents |
+|-----------|----------|
+| `argocd` | Argo CD API server, application controller, repo server, applicationset controller |
+| `argo-rollouts` | Argo Rollouts controller + dashboard |
+| `monitoring` | Prometheus (kube-prometheus-stack) — scraped by canary AnalysisRun |
+
+**Application namespaces:**
+
 | Namespace | Argo CD Application | Strategy |
 |-----------|---------------------|----------|
 | `rollouts-dev` | `rollouts-dev-cluster-default` | instant |
