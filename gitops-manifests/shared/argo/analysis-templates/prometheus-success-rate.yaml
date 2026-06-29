@@ -15,6 +15,6 @@ spec:
         prometheus:
           address: http://prometheus-operated.monitoring.svc.cluster.local:9090
           query: |
-            sum(rate(http_requests_total{status="2xx"}[2m]))
+            sum(rate(http_requests_total{job="{{args.service-name}}",status="2xx"}[2m]))
             /
-            sum(rate(http_requests_total{}[2m]))
+            sum(rate(http_requests_total{job="{{args.service-name}}"}[2m]))
