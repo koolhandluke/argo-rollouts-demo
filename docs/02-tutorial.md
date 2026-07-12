@@ -11,22 +11,117 @@ Open [`argo-links.html`](./argo-links.html) in your browser for one-click port-f
 
 ---
 
+## How It Works
+
+```
+Edit environments/{env}/shared-{env}-values.yaml → image.tag: <new-tag>
+  → git commit + push
+  → Argo CD detects change (polls Git every 3 min, or force-refresh)
+  → Kustomize renders: base Helm chart + shared values + cluster overrides
+  → Application Controller applies diff to cluster
+  → Argo Rollouts controller executes the strategy for that environment
+```
+
+A single ApplicationSet (`rollouts-demo`) scans `environments/*/*` and generates one Application per directory.
+
+```mermaid
+flowchart TD
+    EDIT["Edit shared-{env}-values.yaml\nimage.tag: &lt;new-tag&gt;"]
+    PUSH["git push → main"]
+    ARGOCD["Argo CD\ndetects change & syncs"]
+
+    EDIT --> PUSH --> ARGOCD
+
+    ARGOCD --> DEV["demo-dev"]
+    ARGOCD --> STG["demo-staging"]
+    ARGOCD --> PRD["demo-prod"]
+
+    DEV --> D_S["strategy: instant"]
+    D_S --> D_DONE["100% weight immediately\n✓ done"]
+
+    STG --> S_S["strategy: blueGreen"]
+    S_S --> S_P["preview pod starts\nactive still serving"]
+    S_P --> S_DEC{"promote?"}
+    S_DEC -- "argo rollouts promote" --> S_DONE["traffic → new version\n✓ done"]
+    S_DEC -- "argo rollouts abort" --> S_ABORT["active remains"]
+
+    PRD --> P_S["strategy: canary"]
+    P_S --> P_20["20% canary\nAnalysisRun starts"]
+    P_20 --> P_CHK{"success rate ≥ 95%?"}
+    P_CHK -- "pass" --> P_50["promote 50% → 100%\n✓ done"]
+    P_CHK -- "fail" --> P_ABORT["auto-abort\nrevert to stable"]
+```
+
+---
+
+## Environments
+
+| App (Argo CD) | Namespace | Rollout name | Strategy | Replicas |
+|---|---|---|---|---|
+| `demo-dev` | `demo-dev` | `demo-app` | instant | 1 |
+| `demo-staging` | `demo-staging` | `demo-app` | blueGreen (manual promote) | 2 |
+| `demo-prod` | `demo-prod` | `demo-app` | canary + analysis (manual steps) | 3 |
+| `demo-prod-east` | `demo-prod-east` | `demo-app` | canary + analysis (multi-cluster overlay test) | 3 |
+
+---
+
+## Files
+
+| File | Purpose | When to touch |
+|------|---------|---------------|
+| `gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml` | Dev image tag (CI writes this automatically) | Manual dev deploy only |
+| `gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml` | Staging image tag | To promote to staging |
+| `gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml` | Prod image tag | To promote to prod |
+| `gitops-manifests/projects/demo-app/environments/{env}/{cluster}/values-override.yaml` | Static cluster config (replicas etc.) | Rarely |
+| `gitops-manifests/projects/demo-app/argo/applicationset.yaml` | Argo CD ApplicationSet (all envs) | First-time setup only |
+| `gitops-manifests/projects/demo-app/argo/appproject.yaml` | Argo CD AppProject | First-time setup only |
+| `gitops-manifests/clusters/shared/bootstrap-app.yaml` | ClusterAnalysisTemplate bootstrap App | First-time setup only |
+
+**Values layer order:** `go-app/deploy/demo-app/values.yaml` → `shared-{env}-values.yaml` → `{cluster}/values-override.yaml`
+
+---
+
 ## First-Time Bootstrap
 
-Apply the AppProject and ApplicationSet once. Argo CD generates all three Applications automatically by scanning `environments/*/*`.
-
 ```bash
+# 1. Bootstrap ClusterAnalysisTemplate (Prometheus success-rate check used in prod)
+kubectl apply -f gitops-manifests/clusters/shared/bootstrap-app.yaml
+
+# 2. Create the AppProject + ApplicationSet
 kubectl apply -f gitops-manifests/projects/demo-app/argo/appproject.yaml
 kubectl apply -f gitops-manifests/projects/demo-app/argo/applicationset.yaml
 ```
 
+Argo CD creates all namespaces and syncs all apps immediately.
+
 Verify:
 
 ```bash
-kubectl get applications -n argocd | grep rollouts
-# rollouts-dev-cluster-default      Synced  Healthy
-# rollouts-staging-cluster-us-east  Synced  Healthy
-# rollouts-prod-cluster-us-west     Synced  Healthy
+kubectl get applications -n argocd | grep demo
+# demo-dev        Synced  Healthy
+# demo-staging    Synced  Healthy
+# demo-prod       Synced  Healthy
+# demo-prod-east  Synced  Healthy
+```
+
+---
+
+## Trigger a Deploy
+
+```bash
+# 1. Edit the image tag in the target env
+#    Dev:     gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml
+#    Staging: gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml
+#    Prod:    gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml
+
+# 2. Push
+git add gitops-manifests/projects/demo-app/environments/<env>/shared-<env>-values.yaml
+git commit -m "chore: deploy <tag> to <env>"
+git push origin main
+
+# 3. Force sync immediately (instead of waiting ~3 min)
+kubectl annotate application demo-<env> -n argocd \
+  argocd.argoproj.io/refresh=hard --overwrite
 ```
 
 ---
@@ -36,7 +131,7 @@ kubectl get applications -n argocd | grep rollouts
 Every push to `main` in `go-app/` triggers `build-main.yaml`:
 1. Builds and pushes a SHA image to ECR
 2. Commits the new `image.tag` to `environments/dev/shared-dev-values.yaml`
-3. Argo CD auto-syncs `rollouts-dev`
+3. Argo CD auto-syncs `demo-dev`
 4. Argo Rollouts executes the instant strategy (100% immediately, no gates)
 
 No manual action needed for dev.
@@ -44,7 +139,6 @@ No manual action needed for dev.
 To deploy a specific tag to dev without a code change:
 
 ```bash
-# Edit the tag
 vim gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml
 
 git add gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml
@@ -55,15 +149,18 @@ git push origin main
 Verify:
 
 ```bash
-kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-dev
+kubectl argo rollouts get rollout demo-app -n demo-dev
 
-kubectl get pods -n rollouts-dev \
+kubectl get pods -n demo-dev \
   -o jsonpath='{.items[0].spec.containers[0].image}'
 ```
 
 ---
 
 ## Staging — BlueGreen (Manual Promotion)
+
+Preview pod (new version) runs alongside the active pod (old version) until you promote.
+`autoPromotionEnabled: false` — nothing moves until you say so.
 
 Edit `shared-staging-values.yaml` with the semver tag you want to promote:
 
@@ -82,21 +179,21 @@ git push origin main
 Force sync immediately (instead of waiting ~3 min):
 
 ```bash
-kubectl annotate application rollouts-staging-cluster-us-east -n argocd \
+kubectl annotate application demo-staging -n argocd \
   argocd.argoproj.io/refresh=hard --overwrite
 ```
 
 ### Watch the BlueGreen Rollout
 
 ```bash
-# Watch — pauses when preview pod is ready (stable still serving)
-kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-staging --watch
+# Watch — pauses when preview pod is ready (active still serving)
+kubectl argo rollouts get rollout demo-app -n demo-staging --watch
 
-# Promote: cut traffic from stable → preview
-kubectl argo rollouts promote demo-app-demo-app -n rollouts-staging
+# Promote: cut traffic from active → preview
+kubectl argo rollouts promote demo-app -n demo-staging
 
-# Abort: keep stable, delete preview
-kubectl argo rollouts abort demo-app-demo-app -n rollouts-staging
+# Abort: keep active, delete preview
+kubectl argo rollouts abort demo-app -n demo-staging
 ```
 
 ---
@@ -127,29 +224,29 @@ AnalysisRun starts at step 1 (after 20% weight) and runs Prometheus checks every
 
 ```bash
 # Watch rollout progression and current step
-kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-prod --watch
+kubectl argo rollouts get rollout demo-app -n demo-prod --watch
 
 # Watch AnalysisRun (one created per rollout)
-kubectl get analysisruns -n rollouts-prod -w
+kubectl get analysisruns -n demo-prod -w
 
 # Inspect analysis measurements
-kubectl get analysisrun <name> -n rollouts-prod \
+kubectl get analysisrun <name> -n demo-prod \
   -o jsonpath='{.status.metricResults}' | python3 -m json.tool
 
 # Advance past a manual pause (once satisfied with canary health)
-kubectl argo rollouts promote demo-app-demo-app -n rollouts-prod
+kubectl argo rollouts promote demo-app -n demo-prod
 
 # Abort and revert to stable
-kubectl argo rollouts abort demo-app-demo-app -n rollouts-prod
+kubectl argo rollouts abort demo-app -n demo-prod
 
 # Retry after abort
-kubectl argo rollouts retry rollout demo-app-demo-app -n rollouts-prod
+kubectl argo rollouts retry rollout demo-app -n demo-prod
 ```
 
 ### Force Sync
 
 ```bash
-kubectl annotate application rollouts-prod-cluster-us-west -n argocd \
+kubectl annotate application demo-prod -n argocd \
   argocd.argoproj.io/refresh=hard --overwrite
 ```
 
@@ -161,13 +258,13 @@ To test automatic rollback, cause the canary pod to return errors during the ana
 
 ```bash
 # Find a canary pod
-kubectl get pods -n rollouts-prod -l rollouts-pod-template-hash=<canary-hash>
+kubectl get pods -n demo-prod -l rollouts-pod-template-hash=<canary-hash>
 
 # Exec in and hit a 5xx endpoint
-kubectl exec -n rollouts-prod <pod> -- wget -qO- http://localhost:8080/fail
+kubectl exec -n demo-prod <pod> -- wget -qO- http://localhost:8080/fail
 
 # Watch the AnalysisRun detect the degraded success rate and abort
-kubectl get analysisruns -n rollouts-prod -w
+kubectl get analysisruns -n demo-prod -w
 ```
 
 The AnalysisRun will record a failure measurement. After `failureLimit: 1` failures, it marks itself `Failed`, and Argo Rollouts immediately aborts the canary and reverts to stable.
@@ -178,18 +275,18 @@ The AnalysisRun will record a failure measurement. After `failureLimit: 1` failu
 
 ```bash
 # All Argo CD apps in this demo
-kubectl get applications -n argocd | grep rollouts
+kubectl get applications -n argocd | grep demo
 
 # Rollout status per environment
-kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-dev
-kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-staging
-kubectl argo rollouts get rollout demo-app-demo-app -n rollouts-prod
+kubectl argo rollouts get rollout demo-app -n demo-dev
+kubectl argo rollouts get rollout demo-app -n demo-staging
+kubectl argo rollouts get rollout demo-app -n demo-prod
 
 # AnalysisRuns for prod (one per rollout)
-kubectl get analysisruns -n rollouts-prod
+kubectl get analysisruns -n demo-prod
 
 # What image is running in each environment
-for ns in rollouts-dev rollouts-staging rollouts-prod; do
+for ns in demo-dev demo-staging demo-prod; do
   echo "$ns: $(kubectl get pods -n $ns -o jsonpath='{.items[0].spec.containers[0].image}' 2>/dev/null)"
 done
 ```
@@ -211,6 +308,8 @@ done
 
 | UI | Port-forward | Address |
 |----|-------------|---------|
-| Argo CD | `kubectl port-forward svc/argocd-server -n argocd 8080:443` | https://localhost:8080 |
+| Argo CD | `kubectl port-forward svc/argocd-server -n argocd 8080:80` | http://localhost:8080 |
 | Rollouts Dashboard | `kubectl port-forward svc/argo-rollouts-dashboard -n argo-rollouts 3100:3100` | http://localhost:3100/rollouts |
-| Prometheus (prod analysis) | `kubectl port-forward svc/prometheus-operated -n monitoring 9090:9090` | http://localhost:9090 |
+| Prometheus (prod analysis) | `kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090` | http://localhost:9090 |
+
+Or start all at once: `bash docs/pf.sh start` (stop with `bash docs/pf.sh stop`)

@@ -12,8 +12,8 @@ spec:
           - path: gitops-manifests/projects/demo-app/environments/*/*
   template:
     metadata:
-      # path[4]=env, path[5]=cluster → rollouts-staging-cluster-us-east
-      name: 'rollouts-{{path[4]}}-{{path[5]}}'
+      # path[5]=cluster dir name → demo-dev, demo-staging, demo-prod, demo-prod-east
+      name: 'demo-{{path[5]}}'
     spec:
       project: rollouts-demo
       source:
@@ -22,7 +22,7 @@ spec:
         path: '{{path}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'rollouts-{{path[4]}}-{{path[5]}}'
+        namespace: 'demo-{{path[5]}}'
       syncPolicy:
         automated:
           prune: true

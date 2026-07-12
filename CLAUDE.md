@@ -29,11 +29,12 @@ helm template demo-app go-app/deploy/demo-app \
 
 ## Namespaces
 
-| Env | Namespace |
-|-----|-----------|
-| dev | rollouts-dev |
-| staging | rollouts-staging |
-| prod | rollouts-prod |
+| Env | Namespace | Notes |
+|-----|-----------|-------|
+| dev | `demo-dev` | |
+| staging | `demo-staging` | |
+| prod | `demo-prod` | primary prod cluster |
+| prod (multi-cluster test) | `demo-prod-east` | overlay test only |
 
 ## Docs
 

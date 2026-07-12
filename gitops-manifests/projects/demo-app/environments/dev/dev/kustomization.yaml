@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: rollouts-dev-cluster-default   # Kustomize injects this into every rendered resource
+namespace: demo-dev   # Kustomize injects this into every rendered resource
 
 helmGlobals:
   chartHome: ../../../../../../go-app/deploy
