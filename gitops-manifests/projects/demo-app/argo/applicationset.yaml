@@ -22,7 +22,7 @@ spec:
         path: '{{path}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'rollouts-{{path[4]}}'
+        namespace: 'rollouts-{{path[4]}}-{{path[5]}}'
       syncPolicy:
         automated:
           prune: true
