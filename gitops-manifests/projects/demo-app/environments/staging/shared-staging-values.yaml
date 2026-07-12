@@ -2,7 +2,7 @@
 # Manually updated (rollouts-demo) on promotion from dev.
 image:
   repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: "v0.1.0"
+  tag: "sha-d1405f4"
 
 rollout:
   strategy: blueGreen
