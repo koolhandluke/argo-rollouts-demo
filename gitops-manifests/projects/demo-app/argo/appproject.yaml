@@ -12,13 +12,13 @@ spec:
     - oci://819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app-chart
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: rollouts-dev-cluster-default
+      namespace: demo-dev
     - server: https://kubernetes.default.svc
-      namespace: rollouts-staging-cluster-us-east
+      namespace: demo-staging
     - server: https://kubernetes.default.svc
-      namespace: rollouts-prod-cluster-us-west
+      namespace: demo-prod
     - server: https://kubernetes.default.svc
-      namespace: rollouts-prod-cluster-us-east
+      namespace: demo-prod-east
   clusterResourceWhitelist:
     - group: argoproj.io
       kind: ClusterAnalysisTemplate
