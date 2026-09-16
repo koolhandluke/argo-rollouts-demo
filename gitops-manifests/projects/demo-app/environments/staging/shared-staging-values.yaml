@@ -1,8 +1,13 @@
 # gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml
 # Manually updated (rollouts-demo) on promotion from dev.
+#
+# Local dev:  repository: demo-app  /  tag: local
+# AWS/ECR:    repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app  /  tag: <semver>
 image:
-  repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: "sha-c1abbd3"
+  repository: demo-app
+  tag: "local"
+  # repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
+  # tag: "sha-c1abbd3"
 
 rollout:
   strategy: blueGreen
@@ -16,5 +21,4 @@ loadgen:
   enabled: false
 
 holmesgpt:
-  enabled: true
-  slackChannel: "#deploy-alerts"
+  enabled: false

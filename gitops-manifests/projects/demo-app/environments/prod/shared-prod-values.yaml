@@ -1,8 +1,13 @@
 # gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml
 # Manually updated (rollouts-demo) on promotion from staging.
+#
+# Local dev:  repository: demo-app  /  tag: local
+# AWS/ECR:    repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app  /  tag: <semver>
 image:
-  repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: "v0.1.0"
+  repository: demo-app
+  tag: "local"
+  # repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
+  # tag: "v0.1.0"
 
 rollout:
   strategy: canary

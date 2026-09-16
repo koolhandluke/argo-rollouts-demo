@@ -1,8 +1,13 @@
 # gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml
 # CI writes image.tag here on every push to main.
+#
+# Local dev:  repository: demo-app  /  tag: local  (docker build -t demo-app:local ./go-app)
+# AWS/ECR:    repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app  /  tag: sha-<commit>
 image:
-  repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
-  tag: "sha-c1abbd3"
+  repository: demo-app
+  tag: "local"
+  # repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
+  # tag: "sha-c1abbd3"
 
 rollout:
   strategy: instant
