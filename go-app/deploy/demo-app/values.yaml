@@ -18,6 +18,14 @@ metrics:
 prometheus:
   address: http://prometheus-operated.monitoring.svc.cluster.local:9090
 
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
 loadgen:
   enabled: false        # deploys a CronJob that sends traffic every minute
 

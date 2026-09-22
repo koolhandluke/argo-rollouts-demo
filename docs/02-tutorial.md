@@ -86,15 +86,65 @@ flowchart TD
 
 ## Files
 
+### Promotion (edited during deploys)
+
 | File | Purpose | When to touch |
 |------|---------|---------------|
 | `gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml` | Dev image tag (CI writes this automatically) | Manual dev deploy only |
 | `gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml` | Staging image tag | To promote to staging |
 | `gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml` | Prod image tag | To promote to prod |
-| `gitops-manifests/projects/demo-app/environments/{env}/{cluster}/values-override.yaml` | Static cluster config (replicas etc.) | Rarely |
+
+### Cluster config (rarely changed)
+
+| File | Purpose | When to touch |
+|------|---------|---------------|
+| `gitops-manifests/projects/demo-app/environments/{env}/{cluster}/values-override.yaml` | Static cluster config (replicas, resources, ingress, region) | When cluster config changes |
+| `gitops-manifests/projects/demo-app/environments/{env}/{cluster}/kustomization.yaml` | Layers chart + shared values + cluster overrides | When adding a new cluster |
+
+Cluster overrides can set any Helm value — not just replicas. For example, prod clusters set higher CPU/memory limits:
+
+```yaml
+# environments/prod/prod/values-override.yaml
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi
+
+ingress:
+  host: demo-app.prod.us-west.example.com
+
+env:
+  AWS_REGION: "us-west-2"
+```
+
+Dev and staging inherit the base defaults from `go-app/deploy/demo-app/values.yaml` (50m CPU, 32Mi memory).
+
+### Argo CD setup (one-time)
+
+| File | Purpose | When to touch |
+|------|---------|---------------|
 | `gitops-manifests/projects/demo-app/argo/applicationset.yaml` | Argo CD ApplicationSet (all envs) | First-time setup only |
 | `gitops-manifests/projects/demo-app/argo/appproject.yaml` | Argo CD AppProject | First-time setup only |
 | `gitops-manifests/clusters/shared/bootstrap-app.yaml` | ClusterAnalysisTemplate bootstrap App | First-time setup only |
+
+### Helm chart (source of truth for templates)
+
+| File | Purpose | When to touch |
+|------|---------|---------------|
+| `go-app/deploy/demo-app/values.yaml` | Base defaults (all envs inherit from this) | When adding new chart values |
+| `go-app/deploy/demo-app/templates/` | K8s resource templates (Rollout, Service, etc.) | When changing resource definitions |
+
+### Scripts
+
+| File | Purpose |
+|------|---------|
+| `scripts/dev-update-app.sh` | Set dev image tag and push, or trigger CI build (`--dispatch`) |
+| `docs/pf.sh` | Start/stop port-forwards for all UIs |
 
 **Values layer order:** `go-app/deploy/demo-app/values.yaml` → `shared-{env}-values.yaml` → `{cluster}/values-override.yaml`
 
