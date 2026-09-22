@@ -2,6 +2,25 @@
 
 Open [`argo-links.html`](./argo-links.html) in your browser for one-click port-forwards and copy-paste commands covering everything below.
 
+## Contents
+
+- [Prerequisites](#prerequisites)
+- [How It Works](#how-it-works)
+- [Environments](#environments)
+- [Files](#files)
+- [First-Time Bootstrap](#first-time-bootstrap)
+- [Trigger a Deploy](#trigger-a-deploy)
+- [Dev — Automatic (CI-Driven)](#dev--automatic-ci-driven)
+- [Release Workflow (Semver Tags)](#release-workflow-semver-tags)
+- [Staging — BlueGreen (Manual Promotion)](#staging--bluegreen-manual-promotion)
+- [Prod — Canary + Analysis (Manual Promotion)](#prod--canary--analysis-manual-promotion)
+  - [Prod-East (Multi-Cluster Overlay)](#prod-east-multi-cluster-overlay)
+  - [ServiceMonitor and Prometheus Metrics](#servicemonitor-and-prometheus-metrics)
+- [Simulate a Failure (Prod Canary)](#simulate-a-failure-prod-canary)
+- [Verify: Full State Snapshot](#verify-full-state-snapshot)
+- [Common States](#common-states)
+- [UI Access](#ui-access)
+
 ## Prerequisites
 
 - `kubectl` configured for the target cluster
@@ -157,6 +176,24 @@ kubectl get pods -n demo-dev \
 
 ---
 
+## Release Workflow (Semver Tags)
+
+Pushing a semver tag (e.g. `v1.2.3`) triggers `.github/workflows/build-release.yaml`:
+
+1. Runs `go test ./...`
+2. Builds and pushes a tagged image to ECR (`demo-app:v1.2.3`)
+3. Packages the Helm chart with the matching version and pushes it to ECR OCI (`demo-app-chart:1.2.3`)
+
+This workflow does **not** auto-promote to any environment. To deploy the release, update `image.tag` in the target environment's shared values file and open a PR.
+
+```bash
+# Create a release
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+---
+
 ## Staging — BlueGreen (Manual Promotion)
 
 Preview pod (new version) runs alongside the active pod (old version) until you promote.
@@ -250,6 +287,23 @@ kubectl annotate application demo-prod -n argocd \
   argocd.argoproj.io/refresh=hard --overwrite
 ```
 
+### Prod-East (Multi-Cluster Overlay)
+
+`demo-prod-east` shares `shared-prod-values.yaml` with `demo-prod` — changing the image tag promotes to both clusters simultaneously. The only differences are in `environments/prod/prod-east/values-override.yaml` (ingress host, AWS region).
+
+To watch or promote prod-east independently:
+
+```bash
+kubectl argo rollouts get rollout demo-app -n demo-prod-east --watch
+kubectl argo rollouts promote demo-app -n demo-prod-east
+```
+
+### ServiceMonitor and Prometheus Metrics
+
+The Helm chart deploys a ServiceMonitor (enabled by default via `metrics.enabled: true`) that scrapes `/metrics` on port `http` every 15s. This is what feeds the AnalysisRun's Prometheus success-rate query during canary rollouts.
+
+If kube-prometheus-stack is not installed, the ServiceMonitor resource is harmless — Kubernetes ignores CRDs it doesn't recognize. But without Prometheus, AnalysisRuns in prod will return inconclusive results and eventually fail.
+
 ---
 
 ## Simulate a Failure (Prod Canary)
@@ -281,12 +335,14 @@ kubectl get applications -n argocd | grep demo
 kubectl argo rollouts get rollout demo-app -n demo-dev
 kubectl argo rollouts get rollout demo-app -n demo-staging
 kubectl argo rollouts get rollout demo-app -n demo-prod
+kubectl argo rollouts get rollout demo-app -n demo-prod-east
 
 # AnalysisRuns for prod (one per rollout)
 kubectl get analysisruns -n demo-prod
+kubectl get analysisruns -n demo-prod-east
 
 # What image is running in each environment
-for ns in demo-dev demo-staging demo-prod; do
+for ns in demo-dev demo-staging demo-prod demo-prod-east; do
   echo "$ns: $(kubectl get pods -n $ns -o jsonpath='{.items[0].spec.containers[0].image}' 2>/dev/null)"
 done
 ```
