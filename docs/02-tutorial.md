@@ -4,22 +4,32 @@ Open [`argo-links.html`](./argo-links.html) in your browser for one-click port-f
 
 ## Contents
 
-- [Prerequisites](#prerequisites)
-- [How It Works](#how-it-works)
-- [Environments](#environments)
-- [Files](#files)
-- [First-Time Bootstrap](#first-time-bootstrap)
-- [Trigger a Deploy](#trigger-a-deploy)
-- [Dev — Automatic (CI-Driven)](#dev--automatic-ci-driven)
-- [Release Workflow (Semver Tags)](#release-workflow-semver-tags)
-- [Staging — BlueGreen (Manual Promotion)](#staging--bluegreen-manual-promotion)
-- [Prod — Canary + Analysis (Manual Promotion)](#prod--canary--analysis-manual-promotion)
-  - [Prod-East (Multi-Cluster Overlay)](#prod-east-multi-cluster-overlay)
-  - [ServiceMonitor and Prometheus Metrics](#servicemonitor-and-prometheus-metrics)
-- [Simulate a Failure (Prod Canary)](#simulate-a-failure-prod-canary)
-- [Verify: Full State Snapshot](#verify-full-state-snapshot)
-- [Common States](#common-states)
-- [UI Access](#ui-access)
+- [Operations Guide: Triggering Deployments \& Watching Rollouts](#operations-guide-triggering-deployments--watching-rollouts)
+  - [Contents](#contents)
+  - [Prerequisites](#prerequisites)
+  - [How It Works](#how-it-works)
+  - [Environments](#environments)
+  - [Files](#files)
+    - [Promotion (edited during deploys)](#promotion-edited-during-deploys)
+    - [Cluster config](#cluster-config)
+    - [Argo CD setup](#argo-cd-setup)
+    - [Helm chart (source of truth for templates)](#helm-chart-source-of-truth-for-templates)
+    - [Scripts](#scripts)
+  - [First-Time Bootstrap](#first-time-bootstrap)
+  - [Trigger a Deploy](#trigger-a-deploy)
+  - [Dev — Automatic (CI-Driven)](#dev--automatic-ci-driven)
+  - [Release Workflow (Semver Tags)](#release-workflow-semver-tags)
+  - [Staging — BlueGreen (Manual Promotion)](#staging--bluegreen-manual-promotion)
+    - [Watch the BlueGreen Rollout](#watch-the-bluegreen-rollout)
+  - [Prod — Canary + Analysis (Manual Promotion)](#prod--canary--analysis-manual-promotion)
+    - [Watch the Canary Rollout](#watch-the-canary-rollout)
+    - [Force Sync](#force-sync)
+    - [Prod-East (Multi-Cluster Overlay)](#prod-east-multi-cluster-overlay)
+    - [ServiceMonitor and Prometheus Metrics](#servicemonitor-and-prometheus-metrics)
+  - [Simulate a Failure (Prod Canary)](#simulate-a-failure-prod-canary)
+  - [Verify: Full State Snapshot](#verify-full-state-snapshot)
+  - [Common States](#common-states)
+  - [UI Access](#ui-access)
 
 ## Prerequisites
 
@@ -86,51 +96,37 @@ flowchart TD
 
 ## Files
 
+`gitops-manifests/` is the GitOps state directory — it declares the desired state of all target clusters. In a production setup this would typically live in its own repo (e.g. `myorg/gitops-config`), separate from the application source code. It's co-located here for demo convenience.
+
+Argo CD watches this directory. Any change committed here is the source of truth for what should be running on the clusters.
+
 ### Promotion (edited during deploys)
 
 | File | Purpose | When to touch |
 |------|---------|---------------|
-| `gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml` | Dev image tag (CI writes this automatically) | Manual dev deploy only |
-| `gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml` | Staging image tag | To promote to staging |
-| `gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml` | Prod image tag | To promote to prod |
+| `gitops-manifests/projects/demo-app/environments/dev/shared-dev-values.yaml` | Dev env config — image tag (CI auto-writes), strategy, replicas, metrics, loadgen | CI updates `image.tag` automatically; manual edits for other values |
+| `gitops-manifests/projects/demo-app/environments/staging/shared-staging-values.yaml` | Staging env config — image tag, strategy, replicas, metrics, loadgen, holmesgpt | To promote to staging or change env-wide settings |
+| `gitops-manifests/projects/demo-app/environments/prod/shared-prod-values.yaml` | Prod env config — image tag, strategy, replicas, metrics, loadgen | To promote to prod or change env-wide settings |
 
-### Cluster config (rarely changed)
+### Cluster config
+
+Cluster overrides can set any Helm value.
 
 | File | Purpose | When to touch |
 |------|---------|---------------|
 | `gitops-manifests/projects/demo-app/environments/{env}/{cluster}/values-override.yaml` | Static cluster config (replicas, resources, ingress, region) | When cluster config changes |
 | `gitops-manifests/projects/demo-app/environments/{env}/{cluster}/kustomization.yaml` | Layers chart + shared values + cluster overrides | When adding a new cluster |
 
-Cluster overrides can set any Helm value — not just replicas. For example, prod clusters set higher CPU/memory limits:
-
-```yaml
-# environments/prod/prod/values-override.yaml
-replicaCount: 3
-
-resources:
-  requests:
-    cpu: 250m
-    memory: 128Mi
-  limits:
-    cpu: "1"
-    memory: 256Mi
-
-ingress:
-  host: demo-app.prod.us-west.example.com
-
-env:
-  AWS_REGION: "us-west-2"
-```
 
 Dev and staging inherit the base defaults from `go-app/deploy/demo-app/values.yaml` (50m CPU, 32Mi memory).
 
-### Argo CD setup (one-time)
+### Argo CD setup
 
 | File | Purpose | When to touch |
 |------|---------|---------------|
-| `gitops-manifests/projects/demo-app/argo/applicationset.yaml` | Argo CD ApplicationSet (all envs) | First-time setup only |
-| `gitops-manifests/projects/demo-app/argo/appproject.yaml` | Argo CD AppProject | First-time setup only |
-| `gitops-manifests/clusters/shared/bootstrap-app.yaml` | ClusterAnalysisTemplate bootstrap App | First-time setup only |
+| `gitops-manifests/projects/demo-app/argo/applicationset.yaml` | Scans `environments/*/*` and generates one Argo CD Application per cluster directory (e.g. `demo-dev`, `demo-prod-east`). Auto-syncs with prune and self-heal enabled, creates namespaces automatically. | Adding or removing an environment/cluster |
+| `gitops-manifests/projects/demo-app/argo/appproject.yaml` | RBAC boundary — restricts which Git repos, OCI registries, and destination namespaces the ApplicationSet's apps can target. Whitelists cluster-scoped resources like ClusterAnalysisTemplate. | Adding a new namespace, repo, or cluster-scoped resource |
+| `gitops-manifests/clusters/shared/bootstrap-app.yaml` | Argo CD Application that recursively syncs `gitops-manifests/clusters/shared/` — deploys cluster-wide resources like the Prometheus success-rate ClusterAnalysisTemplate used by prod canary analysis. | Adding new shared cluster resources |
 
 ### Helm chart (source of truth for templates)
 
