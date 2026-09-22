@@ -5,7 +5,7 @@
 # AWS/ECR:    repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app  /  tag: sha-<commit>
 image:
   repository: demo-app
-  tag: "local"
+  tag: "manual-20260922-053540"
   # repository: 819211779624.dkr.ecr.us-west-2.amazonaws.com/demo-app
   # tag: "sha-c1abbd3"
 
