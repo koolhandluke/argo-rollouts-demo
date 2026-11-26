@@ -48,10 +48,16 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `{"status":"ok"}`)
 }
 
+func readyzHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, `{"status":"ready"}`)
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/healthz", healthzHandler)
+	mux.HandleFunc("/readyz", readyzHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 
 	port := os.Getenv("PORT")
