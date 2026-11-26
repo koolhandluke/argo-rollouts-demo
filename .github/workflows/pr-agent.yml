@@ -14,7 +14,8 @@ jobs:
     name: PR Agent
     steps:
       - name: Run PR Agent
-        uses: docker://pragent/pr-agent:0.50.0-github_action
+        uses: The-PR-Agent/pr-agent@v0.50.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC__KEY: ${{ secrets.ANTHROPIC_KEY }}
+          CONFIG__FALLBACK_MODELS: "[]"
