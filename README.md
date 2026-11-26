@@ -2,6 +2,8 @@
 
 Progressive delivery demo: Argo CD + Argo Rollouts, no Kargo.
 
+> PR review powered by [PR-Agent](https://github.com/The-PR-Agent/pr-agent) + Anthropic WIF.
+
 CI auto-promotes to dev on every push to `main`. Staging and prod are promoted manually via a values file edit + push.
 
 ## Quick Start
