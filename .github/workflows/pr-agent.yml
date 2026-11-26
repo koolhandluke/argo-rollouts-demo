@@ -11,10 +11,34 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
+      id-token: write
     name: PR Agent
     steps:
+      - name: Fetch GitHub OIDC token
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const token = await core.getIDToken('https://api.anthropic.com');
+            core.setSecret(token);
+            core.exportVariable('GITHUB_OIDC_JWT', token);
+
+      - name: Exchange for Anthropic access token
+        run: |
+          ACCESS_TOKEN=$(curl -sS https://api.anthropic.com/v1/oauth/token \
+            -H "content-type: application/json" \
+            --data '{
+              "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+              "assertion": "'"$GITHUB_OIDC_JWT"'",
+              "federation_rule_id": "fdrl_01KuDkYqkc5heGTPbZCztkRk",
+              "organization_id": "ac7bb6e3-e00e-4ea9-82ce-f453c7bf9858",
+              "service_account_id": "svac_01XVwtNknYxwctSTqueq4KpN",
+              "workspace_id": "wrkspc_01B2MDyg3T7NenD2KPM3xSuy"
+            }' | jq -r '.access_token')
+          echo "::add-mask::$ACCESS_TOKEN"
+          echo "ANTHROPIC_ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
+
       - name: Run PR Agent
         uses: docker://pragent/pr-agent:0.50.0-github_action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC__KEY: ${{ secrets.ANTHROPIC_KEY }}
+          ANTHROPIC__KEY: ${{ env.ANTHROPIC_ACCESS_TOKEN }}
