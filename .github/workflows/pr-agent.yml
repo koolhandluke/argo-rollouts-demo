@@ -16,6 +16,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - uses: actions/checkout@v4
       - uses: The-PR-Agent/pr-agent@v0.50.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -33,6 +34,10 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - uses: actions/checkout@v4
+      - name: Load instructions
+        run: |
+          { echo 'INSTRUCTIONS<<EOF'; cat .pr_agent/risk-instructions.md; echo 'EOF'; } >> $GITHUB_ENV
       - uses: The-PR-Agent/pr-agent@v0.50.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,30 +51,7 @@ jobs:
           PR_REVIEWER__REQUIRE_SCORE_REVIEW: "false"
           PR_REVIEWER__REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
           PR_REVIEWER__INLINE_CODE_COMMENTS: "false"
-          PR_REVIEWER__EXTRA_INSTRUCTIONS: >
-            You are the RISK & BACKWARD COMPATIBILITY agent. Focus only on:
-            - Breaking API or interface changes (function signatures, exported types, HTTP endpoints)
-            - Dockerfile or base image changes — flag the old and new image
-            - go.mod dependency upgrades — flag major version bumps
-            - .github/workflows/ changes — what CI behaviour changes?
-            - Argo Rollouts strategy or analysis template changes
-            - Any change that could cause a rollback to fail
-
-
-            Output format — use this exact structure:
-
-            ## 🔴 Risk Assessment
-
-            | Severity | Finding | File |
-            |----------|---------|------|
-            | HIGH | <finding> | <file> |
-            | MED  | <finding> | <file> |
-            | LOW  | <finding> | <file> |
-
-            If no findings at a severity level, omit that row.
-            If no risks found, write: "✅ No backward compatibility or rollout risks identified."
-
-            Ignore style, naming, test coverage, and general quality — other agents cover those.
+          PR_REVIEWER__EXTRA_INSTRUCTIONS: ${{ env.INSTRUCTIONS }}
 
   test-coverage:
     if: ${{ github.event.sender.type != 'Bot' }}
@@ -79,6 +61,10 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - uses: actions/checkout@v4
+      - name: Load instructions
+        run: |
+          { echo 'INSTRUCTIONS<<EOF'; cat .pr_agent/test-instructions.md; echo 'EOF'; } >> $GITHUB_ENV
       - uses: The-PR-Agent/pr-agent@v0.50.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,24 +78,7 @@ jobs:
           PR_REVIEWER__REQUIRE_SCORE_REVIEW: "false"
           PR_REVIEWER__REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
           PR_REVIEWER__INLINE_CODE_COMMENTS: "false"
-          PR_REVIEWER__EXTRA_INSTRUCTIONS: >
-            You are the TEST COVERAGE agent. Focus only on:
-            - New behaviour that has no test
-            - Changed behaviour where existing tests are not updated
-            - Error paths and edge cases that are untested
-            - For Go: table-driven tests preferred; flag if a testable function has no _test.go counterpart
-
-
-            Output format — use this exact structure:
-
-            ## 🧪 Test Coverage
-
-            - [ ] `<function/file>` — <what is missing or at risk>
-            - [ ] `<function/file>` — <what is missing or at risk>
-
-            If coverage looks adequate, write: "✅ Changed behaviour appears to be covered."
-
-            Ignore risk, backward compatibility, style, and general quality — other agents cover those.
+          PR_REVIEWER__EXTRA_INSTRUCTIONS: ${{ env.INSTRUCTIONS }}
 
   code-quality:
     if: ${{ github.event.sender.type != 'Bot' }}
@@ -119,6 +88,10 @@ jobs:
       issues: write
       pull-requests: write
     steps:
+      - uses: actions/checkout@v4
+      - name: Load instructions
+        run: |
+          { echo 'INSTRUCTIONS<<EOF'; cat .pr_agent/quality-instructions.md; echo 'EOF'; } >> $GITHUB_ENV
       - uses: The-PR-Agent/pr-agent@v0.50.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,16 +106,4 @@ jobs:
           PR_REVIEWER__REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
           PR_REVIEWER__INLINE_CODE_COMMENTS: "true"
           PR_REVIEWER__NUM_CODE_SUGGESTIONS: "5"
-          PR_REVIEWER__EXTRA_INSTRUCTIONS: >
-            You are the CODE QUALITY agent. Focus only on:
-            - Ignored errors in Go (bare _ assignments on error returns)
-            - Missing context propagation (functions that should accept ctx but don't)
-            - Goroutine leaks (goroutines started with no cancel or done channel)
-            - Overly complex logic that can be simplified
-            - Naming clarity (unexported names, single-letter vars outside loops)
-
-
-            Post findings as inline comments on the specific lines where the issue occurs.
-            For each finding include: what the problem is and a one-line fix suggestion.
-
-            Ignore risk, backward compatibility, and test coverage — other agents cover those.
+          PR_REVIEWER__EXTRA_INSTRUCTIONS: ${{ env.INSTRUCTIONS }}
