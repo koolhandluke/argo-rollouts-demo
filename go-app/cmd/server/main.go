@@ -48,10 +48,23 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `{"status":"ok"}`)
 }
 
+type versionResponse struct {
+	Version   string `json:"version"`
+	BuildTime string `json:"build_time"`
+}
+
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	v := os.Getenv("APP_VERSION")
+	b := os.Getenv("BUILD_TIME")
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(versionResponse{Version: v, BuildTime: b})
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/healthz", healthzHandler)
+	mux.HandleFunc("/version", versionHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 
 	port := os.Getenv("PORT")
