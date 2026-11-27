@@ -1,21 +1,148 @@
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, synchronize]
+    types: [opened, reopened, ready_for_review]
   issue_comment:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  pr_agent_job:
+  describe:
     if: ${{ github.event.sender.type != 'Bot' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
       pull-requests: write
-    name: PR Agent
     steps:
-      - name: Run PR Agent
-        uses: The-PR-Agent/pr-agent@v0.50.0
+      - uses: The-PR-Agent/pr-agent@v0.50.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC__KEY: ${{ secrets.ANTHROPIC_KEY }}
           CONFIG__FALLBACK_MODELS: "[]"
+          GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "true"
+          GITHUB_ACTION_CONFIG__AUTO_REVIEW: "false"
+          GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
+
+  risk-assessment:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: The-PR-Agent/pr-agent@v0.50.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC__KEY: ${{ secrets.ANTHROPIC_KEY }}
+          CONFIG__FALLBACK_MODELS: "[]"
+          GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
+          PR_REVIEWER__REQUIRE_SECURITY_REVIEW: "true"
+          PR_REVIEWER__REQUIRE_TESTS_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_SCORE_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
+          PR_REVIEWER__INLINE_CODE_COMMENTS: "false"
+          PR_REVIEWER__EXTRA_INSTRUCTIONS: >
+            You are the RISK & BACKWARD COMPATIBILITY agent. Focus only on:
+            - Breaking API or interface changes (function signatures, exported types, HTTP endpoints)
+            - Dockerfile or base image changes — flag the old and new image
+            - go.mod dependency upgrades — flag major version bumps
+            - .github/workflows/ changes — what CI behaviour changes?
+            - Argo Rollouts strategy or analysis template changes
+            - Any change that could cause a rollback to fail
+
+
+            Output format — use this exact structure:
+
+            ## 🔴 Risk Assessment
+
+            | Severity | Finding | File |
+            |----------|---------|------|
+            | HIGH | <finding> | <file> |
+            | MED  | <finding> | <file> |
+            | LOW  | <finding> | <file> |
+
+            If no findings at a severity level, omit that row.
+            If no risks found, write: "✅ No backward compatibility or rollout risks identified."
+
+            Ignore style, naming, test coverage, and general quality — other agents cover those.
+
+  test-coverage:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: The-PR-Agent/pr-agent@v0.50.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC__KEY: ${{ secrets.ANTHROPIC_KEY }}
+          CONFIG__FALLBACK_MODELS: "[]"
+          GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
+          PR_REVIEWER__REQUIRE_SECURITY_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_TESTS_REVIEW: "true"
+          PR_REVIEWER__REQUIRE_SCORE_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
+          PR_REVIEWER__INLINE_CODE_COMMENTS: "false"
+          PR_REVIEWER__EXTRA_INSTRUCTIONS: >
+            You are the TEST COVERAGE agent. Focus only on:
+            - New behaviour that has no test
+            - Changed behaviour where existing tests are not updated
+            - Error paths and edge cases that are untested
+            - For Go: table-driven tests preferred; flag if a testable function has no _test.go counterpart
+
+
+            Output format — use this exact structure:
+
+            ## 🧪 Test Coverage
+
+            - [ ] `<function/file>` — <what is missing or at risk>
+            - [ ] `<function/file>` — <what is missing or at risk>
+
+            If coverage looks adequate, write: "✅ Changed behaviour appears to be covered."
+
+            Ignore risk, backward compatibility, style, and general quality — other agents cover those.
+
+  code-quality:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: The-PR-Agent/pr-agent@v0.50.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC__KEY: ${{ secrets.ANTHROPIC_KEY }}
+          CONFIG__FALLBACK_MODELS: "[]"
+          GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG__AUTO_REVIEW: "true"
+          GITHUB_ACTION_CONFIG__AUTO_IMPROVE: "false"
+          PR_REVIEWER__REQUIRE_SECURITY_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_TESTS_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_SCORE_REVIEW: "false"
+          PR_REVIEWER__REQUIRE_ESTIMATE_EFFORT_TO_REVIEW: "false"
+          PR_REVIEWER__INLINE_CODE_COMMENTS: "true"
+          PR_REVIEWER__NUM_CODE_SUGGESTIONS: "5"
+          PR_REVIEWER__EXTRA_INSTRUCTIONS: >
+            You are the CODE QUALITY agent. Focus only on:
+            - Ignored errors in Go (bare _ assignments on error returns)
+            - Missing context propagation (functions that should accept ctx but don't)
+            - Goroutine leaks (goroutines started with no cancel or done channel)
+            - Overly complex logic that can be simplified
+            - Naming clarity (unexported names, single-letter vars outside loops)
+
+
+            Post findings as inline comments on the specific lines where the issue occurs.
+            For each finding include: what the problem is and a one-line fix suggestion.
+
+            Ignore risk, backward compatibility, and test coverage — other agents cover those.

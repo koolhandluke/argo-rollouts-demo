@@ -1,23 +1,13 @@
 [config]
 model = "anthropic/claude-sonnet-4-6"
 
-# Only run describe + review. Disable everything else initially.
+# All auto actions are disabled here — the workflow controls each job explicitly.
 [github_action_config]
-auto_review = true
-auto_describe = true
+auto_review = false
+auto_describe = false
 auto_improve = false
-
-[pr_reviewer]
-# High-risk paths for this repo — always flag these
-extra_instructions = """
-Flag as high-risk if the PR touches:
-- Dockerfile or docker-compose files
-- go.mod or go.sum (dependency changes)
-- .github/workflows/ (CI/CD changes)
-- Any Kubernetes manifests or Helm values
-
-For Go code: flag missing error handling, goroutine leaks, and context propagation issues.
-"""
 
 [pr_description]
 publish_labels = false
+keep_original_user_title = true
+add_original_user_description = true
